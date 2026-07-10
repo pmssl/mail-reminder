@@ -1,8 +1,8 @@
 # Mail Reminder
 
-A lightweight self-hosted email reminder app for Cloudflare Pages, Workers, D1, and Cron Triggers.
+A lightweight self-hosted email reminder app for Cloudflare Workers, Workers Assets, D1, and Cron Triggers.
 
-The app is designed for personal reminders such as checking a VPS every 90 days, renewing a domain every 3 months, or renewing a passport yearly. It is intentionally small: a React dashboard, a Hono API, a D1 database, and a daily Worker cron job.
+The app is designed for personal reminders such as checking a VPS every 90 days, renewing a domain every 3 months, or renewing a passport yearly. It is intentionally small: a React dashboard served by the Worker, a Hono API under `/api/*`, a D1 database, and a daily Worker cron job.
 
 ## Features
 
@@ -27,7 +27,7 @@ src/
 frontend/
   src/              React + Vite + Tailwind dashboard
 migrations/         D1 schema migrations
-public/             Cloudflare Pages SPA fallback
+public/             Vite public assets
 ```
 
 ## Local Development
@@ -69,8 +69,8 @@ Open `http://localhost:5173`.
 - `npm run test`: run unit tests.
 - `npm run typecheck`: run TypeScript checks.
 - `npm run build`: build the frontend and typecheck the project.
-- `npm run deploy:api`: deploy the Worker API.
-- `npm run deploy:frontend`: deploy `dist` to Cloudflare Pages.
+- `npm run deploy`: build the frontend and deploy the Worker with static assets.
+- `npm run deploy:worker`: deploy the Worker using the existing `dist` build.
 
 ## API
 
@@ -98,7 +98,7 @@ Routes:
 
 If `API_TOKEN` is configured, send it as the `Authorization` header. A `Bearer` prefix is also accepted.
 
-The frontend reads `VITE_API_BASE_URL` and optional `VITE_API_TOKEN` at build time. In local development, leave `VITE_API_BASE_URL` empty and Vite proxies `/api` to the Worker.
+The frontend calls `/api/...` on the same origin by default. `VITE_API_BASE_URL` is only needed if you intentionally point the frontend at a separate API domain. In local development, leave it empty and Vite proxies `/api` to the Worker.
 
 ## Email Providers
 

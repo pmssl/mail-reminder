@@ -11,8 +11,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "deploy:api": "wrangler deploy",
-    "deploy:frontend": "wrangler pages deploy dist --project-name mail-reminder",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:worker": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply mail_reminder --local",
     "db:migrate:remote": "wrangler d1 migrations apply mail_reminder --remote"
   },

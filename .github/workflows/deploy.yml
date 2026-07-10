@@ -40,7 +40,6 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_API_TOKEN: ${{ secrets.VITE_API_TOKEN }}
 
       - name: Ensure D1 database
@@ -68,18 +67,3 @@ jobs:
         env:
           CLOUDMAIL_BASE_URL: ${{ secrets.CLOUDMAIL_BASE_URL }}
           CLOUDMAIL_TOKEN: ${{ secrets.CLOUDMAIL_TOKEN }}
-
-      - name: Ensure Pages project
-        run: node .github/scripts/ensure-pages.mjs
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'mail-reminder' }}
-          CLOUDFLARE_PAGES_PRODUCTION_BRANCH: main
-
-      - name: Deploy Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'mail-reminder' }}

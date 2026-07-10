@@ -1,14 +1,22 @@
 # Deployment Guide
 
-This project deploys as:
+This project deploys as one Cloudflare Worker:
 
-- Cloudflare Worker API: Hono routes, D1 binding, and Cron Trigger.
-- Cloudflare Pages frontend: static Vite build.
-- Cloudflare D1 database: reminder storage.
+- React/Vite frontend is served by Workers Assets from `dist`.
+- Hono API runs under `/api/*`.
+- D1 stores reminders.
+- Worker Cron Trigger sends due reminders once per day.
+
+The same domain can open the dashboard and call the API:
+
+```text
+https://your-worker-domain/        -> frontend dashboard
+https://your-worker-domain/api/*   -> Worker API
+```
 
 ## GitHub Actions Deployment
 
-This repository includes `.github/workflows/deploy.yml`. It deploys automatically on pushes to `main` and can also be run manually from the GitHub Actions tab.
+The repository includes `.github/workflows/deploy.yml`. It runs on pushes to `main` and can also be triggered manually from the GitHub Actions tab.
 
 ### Required GitHub Secrets
 
@@ -16,22 +24,24 @@ In GitHub, open `Settings -> Secrets and variables -> Actions -> Secrets` and ad
 
 | Secret | Description |
 | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers, Pages, D1 edit access. |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers Scripts edit, D1 edit, and Account Settings read access. |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID. |
 | `CLOUDMAIL_BASE_URL` | `https://mail.aimid.shop`. |
 | `CLOUDMAIL_TOKEN` | Cloud Mail login JWT. |
 | `VITE_API_TOKEN` | Optional. Only needed if Worker `API_TOKEN` is enabled. |
 
-The Cloudflare API token should allow editing Workers, Pages, D1, and Worker secrets for this account.
+The current deployment uses Cloud Mail account `46` from `wrangler.toml`, which sends as `mailreminder@aimid.shop`.
 
-### Required GitHub Variables
+### Optional GitHub Secrets
 
-In `Settings -> Secrets and variables -> Actions -> Variables`, add:
+If you enable API token protection on the Worker, add the same value in both places:
 
-| Variable | Description |
+| Secret | Used by |
 | --- | --- |
-| `VITE_API_BASE_URL` | Worker API URL, for example `https://mail-reminder-api.<subdomain>.workers.dev`. Leave empty only when Pages and Worker share one domain under `/api/*`. |
-| `CLOUDFLARE_PAGES_PROJECT_NAME` | Optional. Defaults to `mail-reminder`. |
+| `API_TOKEN` | Worker runtime secret. |
+| `VITE_API_TOKEN` | Frontend build-time variable. |
+
+The included workflow does not currently upload `API_TOKEN` automatically. For a personal dashboard on a private/custom domain, leaving `API_TOKEN` unset is the simplest setup.
 
 ### D1 Setup
 
@@ -45,86 +55,40 @@ npx wrangler d1 create mail_reminder
 
 If you create it manually, copy the returned `database_id` into `wrangler.toml`, then commit and push. If you leave the placeholder ID in `wrangler.toml`, the GitHub Action will replace it during deployment.
 
-The GitHub Action will apply D1 migrations, deploy the Worker, and deploy Pages on each push to `main`.
+## Local Deployment
 
-### API Token Note
-
-If you set a Worker secret named `API_TOKEN`, the frontend must be built with matching `VITE_API_TOKEN`. Because frontend variables are visible in the browser bundle, this is only lightweight access control. For this personal app, deploying without `API_TOKEN` is usually simpler.
-
-## 1. Create D1
+Install dependencies:
 
 ```bash
-wrangler d1 create mail_reminder
+npm install
 ```
 
-Copy the returned `database_id` into `wrangler.toml`:
+Build and deploy the Worker with frontend assets:
 
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "mail_reminder"
-database_id = "your-real-database-id"
-migrations_dir = "migrations"
+```bash
+npm run deploy
 ```
 
-Apply the migration remotely:
+Apply D1 migrations remotely when needed:
 
 ```bash
 npm run db:migrate:remote
 ```
 
-## 2. Configure Worker Variables
+## Worker Assets
 
-Keep secrets out of `wrangler.toml`.
-
-Recommended secret:
-
-```bash
-wrangler secret put API_TOKEN
-```
-
-For SMTP:
-
-```bash
-wrangler secret put SMTP_HOST
-wrangler secret put SMTP_USERNAME
-wrangler secret put SMTP_PASSWORD
-wrangler secret put SMTP_FROM_EMAIL
-wrangler secret put SMTP_FROM_NAME
-```
-
-Non-secret SMTP values can remain in `wrangler.toml`:
+The Worker serves the Vite build through this `wrangler.toml` block:
 
 ```toml
-[vars]
-EMAIL_PROVIDER = "smtp"
-SMTP_PORT = "587"
-SMTP_SECURE = "false"
-APP_ORIGIN = "https://your-pages-domain.pages.dev"
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
 ```
 
-For Cloud Mail:
+This means `/api/*` is handled by Hono, while all other paths are served from the frontend build. React routes fall back to `index.html`.
 
-```bash
-wrangler secret put CLOUDMAIL_BASE_URL
-wrangler secret put CLOUDMAIL_TOKEN
-wrangler secret put CLOUDMAIL_ACCOUNT_ID
-wrangler secret put CLOUDMAIL_FROM_NAME
-```
-
-Then set:
-
-```toml
-[vars]
-EMAIL_PROVIDER = "cloudmail"
-APP_ORIGIN = "https://your-pages-domain.pages.dev"
-```
-
-## 3. Deploy API Worker
-
-```bash
-npm run deploy:api
-```
+## Cron
 
 The cron trigger is defined in `wrangler.toml`:
 
@@ -133,61 +97,19 @@ The cron trigger is defined in `wrangler.toml`:
 crons = ["0 0 * * *"]
 ```
 
-That runs once per day at midnight UTC.
-
-## 4. Deploy Frontend to Pages
-
-Build:
-
-```bash
-npm run build
-```
-
-Deploy:
-
-```bash
-npm run deploy:frontend
-```
-
-In Cloudflare Pages settings, set:
-
-```ini
-VITE_API_BASE_URL=https://your-worker.your-subdomain.workers.dev
-```
-
-If your Worker requires `API_TOKEN`, also set:
-
-```ini
-VITE_API_TOKEN=your-api-token
-```
-
-If you route the Worker at the same custom domain under `/api/*`, leave `VITE_API_BASE_URL` empty so the frontend calls `/api/...` on the current origin.
-
-## 5. Same-domain Routing Option
-
-For a custom domain such as `reminders.example.com`, configure:
-
-- Pages for `reminders.example.com`
-- Worker route for `reminders.example.com/api/*`
-
-The frontend includes `public/_redirects` so non-API browser routes fall back to `index.html`.
-
-## 6. First Run Checklist
-
-1. Confirm `GET /api/health` returns `code: 200`.
-2. Create a reminder in the dashboard.
-3. Use the test-send action.
-4. Confirm the email provider response is successful.
-5. Confirm D1 contains the reminder.
-6. Confirm Cloudflare shows the Worker cron trigger.
+It runs once per day at midnight UTC, which is 08:00 in Beijing time.
 
 ## Environment Variables
 
 | Name | Required | Description |
 | --- | --- | --- |
-| `API_TOKEN` | Recommended | Optional API token checked against `Authorization`. |
-| `APP_ORIGIN` | Recommended | CORS origin for the frontend. |
+| `API_TOKEN` | Optional | Optional API token checked against `Authorization`. |
+| `APP_ORIGIN` | Optional | CORS origin. `*` is fine when frontend and API share one Worker domain. |
 | `EMAIL_PROVIDER` | Yes | `smtp`, `cloudmail`, or `noop`. |
+| `CLOUDMAIL_BASE_URL` | Cloud Mail | Base URL of the Cloud Mail service. |
+| `CLOUDMAIL_TOKEN` | Cloud Mail | Token returned by `/api/login`. |
+| `CLOUDMAIL_ACCOUNT_ID` | Cloud Mail | Sending account ID. |
+| `CLOUDMAIL_FROM_NAME` | Cloud Mail | Optional sender display name. |
 | `SMTP_HOST` | SMTP | SMTP hostname. |
 | `SMTP_PORT` | SMTP | Usually `587` or `465`. |
 | `SMTP_SECURE` | SMTP | `true` for implicit TLS. |
@@ -197,12 +119,16 @@ The frontend includes `public/_redirects` so non-API browser routes fall back to
 | `SMTP_FROM_EMAIL` | SMTP | Sender email address. |
 | `SMTP_FROM_NAME` | SMTP | Sender display name. |
 | `SMTP_EHLO_DOMAIN` | SMTP | Optional EHLO domain. |
-| `CLOUDMAIL_BASE_URL` | Cloud Mail | Base URL of the Cloud Mail service. |
-| `CLOUDMAIL_TOKEN` | Cloud Mail | Token returned by `/api/login`. |
-| `CLOUDMAIL_ACCOUNT_ID` | Cloud Mail | Sending account ID. |
-| `CLOUDMAIL_FROM_NAME` | Cloud Mail | Optional sender display name. |
-| `VITE_API_BASE_URL` | Frontend | Worker API base URL for production builds. |
-| `VITE_DEV_API_BASE_URL` | Frontend | Worker API base URL for Vite proxy in local dev. |
+| `VITE_API_BASE_URL` | Optional | Leave empty for same-domain deployment. |
+| `VITE_DEV_API_BASE_URL` | Local dev | Worker API base URL for the Vite dev proxy. |
+
+## First Run Checklist
+
+1. Open the Worker URL. The dashboard should load at `/`.
+2. Confirm `GET /api/health` returns `code: 200`.
+3. Create a reminder in the dashboard.
+4. Use the test-send action.
+5. Confirm Cloudflare shows the Worker cron trigger.
 
 ## Notes
 
@@ -211,9 +137,3 @@ The frontend includes `public/_redirects` so non-API browser routes fall back to
 - Failed sends are logged and left due so the next cron run can retry.
 - Once-only reminders are disabled after a successful send.
 - SMTP uses Cloudflare Workers TCP sockets. Use an email provider that accepts connections from Workers.
-
-## References
-
-- [Cloudflare Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
-- [Cloudflare D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/)
-- [Cloudflare Workers TCP sockets](https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/)
