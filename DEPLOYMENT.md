@@ -33,15 +33,17 @@ In `Settings -> Secrets and variables -> Actions -> Variables`, add:
 | `VITE_API_BASE_URL` | Worker API URL, for example `https://mail-reminder-api.<subdomain>.workers.dev`. Leave empty only when Pages and Worker share one domain under `/api/*`. |
 | `CLOUDFLARE_PAGES_PROJECT_NAME` | Optional. Defaults to `mail-reminder`. |
 
-### One-Time Cloudflare Setup
+### D1 Setup
 
-Create D1 once:
+The GitHub Action automatically creates the D1 database named `mail_reminder` when it does not exist. It then patches `wrangler.toml` inside the CI workspace with the resolved database ID before applying migrations and deploying the Worker.
+
+Manual creation is still supported:
 
 ```bash
 npx wrangler d1 create mail_reminder
 ```
 
-Copy the returned `database_id` into `wrangler.toml`, then commit and push.
+If you create it manually, copy the returned `database_id` into `wrangler.toml`, then commit and push. If you leave the placeholder ID in `wrangler.toml`, the GitHub Action will replace it during deployment.
 
 The GitHub Action will apply D1 migrations, deploy the Worker, and deploy Pages on each push to `main`.
 
