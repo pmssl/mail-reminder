@@ -6,6 +6,49 @@ This project deploys as:
 - Cloudflare Pages frontend: static Vite build.
 - Cloudflare D1 database: reminder storage.
 
+## GitHub Actions Deployment
+
+This repository includes `.github/workflows/deploy.yml`. It deploys automatically on pushes to `main` and can also be run manually from the GitHub Actions tab.
+
+### Required GitHub Secrets
+
+In GitHub, open `Settings -> Secrets and variables -> Actions -> Secrets` and add:
+
+| Secret | Description |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token with Workers, Pages, D1 edit access. |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID. |
+| `CLOUDMAIL_BASE_URL` | `https://mail.aimid.shop`. |
+| `CLOUDMAIL_TOKEN` | Cloud Mail login JWT. |
+| `VITE_API_TOKEN` | Optional. Only needed if Worker `API_TOKEN` is enabled. |
+
+The Cloudflare API token should allow editing Workers, Pages, D1, and Worker secrets for this account.
+
+### Required GitHub Variables
+
+In `Settings -> Secrets and variables -> Actions -> Variables`, add:
+
+| Variable | Description |
+| --- | --- |
+| `VITE_API_BASE_URL` | Worker API URL, for example `https://mail-reminder-api.<subdomain>.workers.dev`. Leave empty only when Pages and Worker share one domain under `/api/*`. |
+| `CLOUDFLARE_PAGES_PROJECT_NAME` | Optional. Defaults to `mail-reminder`. |
+
+### One-Time Cloudflare Setup
+
+Create D1 once:
+
+```bash
+npx wrangler d1 create mail_reminder
+```
+
+Copy the returned `database_id` into `wrangler.toml`, then commit and push.
+
+The GitHub Action will apply D1 migrations, deploy the Worker, and deploy Pages on each push to `main`.
+
+### API Token Note
+
+If you set a Worker secret named `API_TOKEN`, the frontend must be built with matching `VITE_API_TOKEN`. Because frontend variables are visible in the browser bundle, this is only lightweight access control. For this personal app, deploying without `API_TOKEN` is usually simpler.
+
 ## 1. Create D1
 
 ```bash

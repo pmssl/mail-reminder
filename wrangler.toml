@@ -12,8 +12,8 @@ migrations_dir = "migrations"
 crons = ["0 0 * * *"]
 
 [vars]
-APP_ORIGIN = "http://localhost:5173"
-EMAIL_PROVIDER = "smtp"
+APP_ORIGIN = "*"
+EMAIL_PROVIDER = "cloudmail"
 SMTP_PORT = "587"
 SMTP_SECURE = "false"
 CLOUDMAIL_ACCOUNT_ID = "46"
